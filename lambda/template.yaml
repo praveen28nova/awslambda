@@ -1,0 +1,488 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  MailBlast v2 — Production-ready permission-based bulk email platform.
+  Lambda + API Gateway + SQS (FIFO) + DynamoDB (single-table) + SES + SNS + Cognito.
+
+# ── Parameters ─────────────────────────────────────────────────────────────────
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment (controls log level, CORS, throttles)
+
+  SESRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region where SES is verified and configured
+
+  SESConfigurationSet:
+    Type: String
+    Default: ""
+    Description: >
+      Name of the SES Configuration Set for bounce/complaint/delivery tracking.
+      Create one in SES console, attach an SNS destination to MailBlastEventsTopic.
+
+  AppBaseUrl:
+    Type: String
+    Default: "https://example.com"
+    Description: >
+      Public base URL of this deployment. Used to build unsubscribe links.
+      Must be reachable from email clients (no localhost).
+
+  CORSOrigin:
+    Type: String
+    Default: "*"
+    Description: >
+      Allowed origin for CORS headers. Restrict to your frontend domain in prod
+      (e.g. https://app.mailblast.example.com).
+
+  SendRatePerSec:
+    Type: Number
+    Default: 10
+    MinValue: 1
+    MaxValue: 14
+    Description: >
+      Emails per second sent by the worker. Keep ≤ 14 unless SES has approved
+      a higher quota for your account.
+
+  WorkerBatchSize:
+    Type: Number
+    Default: 10
+    Description: Recipients per worker query page.
+
+  BypassAuth:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Set to "true" ONLY for local sam local development. Never deploy with "true".
+
+# ── Globals ────────────────────────────────────────────────────────────────────
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    MemorySize: 256
+    Timeout: 30
+    Architectures: [arm64]
+    Environment:
+      Variables:
+        MAILBLAST_TABLE: !Ref MailBlastTable
+        CAMPAIGN_QUEUE_URL: !Ref CampaignQueue
+        SES_REGION: !Ref SESRegion
+        SES_CONFIGURATION_SET: !Ref SESConfigurationSet
+        APP_BASE_URL: !Ref AppBaseUrl
+        CORS_ORIGIN: !Ref CORSOrigin
+        LOG_LEVEL: !If [IsProd, "info", "debug"]
+        BYPASS_AUTH: !Ref BypassAuth
+        ENVIRONMENT: !Ref Environment
+    Tags:
+      Project: MailBlast
+      Environment: !Ref Environment
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+# ── Resources ──────────────────────────────────────────────────────────────────
+Resources:
+
+  # ── DynamoDB Table (single-table design) ──────────────────────────────────────
+  MailBlastTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain          # never accidentally delete prod data
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "MailBlast-${Environment}"
+      BillingMode: PAY_PER_REQUEST  # on-demand — no capacity planning needed
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true            # encryption at rest
+      AttributeDefinitions:
+        - { AttributeName: PK,     AttributeType: S }
+        - { AttributeName: SK,     AttributeType: S }
+        - { AttributeName: GSI1PK, AttributeType: S }
+        - { AttributeName: GSI1SK, AttributeType: S }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - { AttributeName: GSI1PK, KeyType: HASH }
+            - { AttributeName: GSI1SK, KeyType: RANGE }
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ── SQS FIFO Queue + DLQ ─────────────────────────────────────────────────────
+  CampaignQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "MailBlastDLQ-${Environment}.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      MessageRetentionPeriod: 1209600  # 14 days
+      KmsMasterKeyId: alias/aws/sqs
+
+  CampaignQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "MailBlastCampaigns-${Environment}.fifo"
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 900           # must be ≥ worker Lambda timeout (15 min)
+      MessageRetentionPeriod: 86400    # 24 hours
+      KmsMasterKeyId: alias/aws/sqs
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CampaignQueueDLQ.Arn
+        maxReceiveCount: 3             # retry up to 3× before DLQ
+
+  # ── SNS Topic for SES events ──────────────────────────────────────────────────
+  MailBlastEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "MailBlastEvents-${Environment}"
+      KmsMasterKeyId: alias/aws/sns
+      # After deploy: set this as the SNS destination in your SES Configuration Set
+
+  # ── Cognito User Pool (authentication) ───────────────────────────────────────
+  MailBlastUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "MailBlast-${Environment}"
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      MfaConfiguration: OPTIONAL
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - { Name: verified_email, Priority: 1 }
+      Schema:
+        - { Name: accountId, AttributeDataType: String, Mutable: true }
+      PasswordPolicy:
+        MinimumLength: 12
+        RequireUppercase: true
+        RequireLowercase: true
+        RequireNumbers: true
+        RequireSymbols: false
+
+  MailBlastUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: mailblast-api-client
+      UserPoolId: !Ref MailBlastUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # ── API Gateway ───────────────────────────────────────────────────────────────
+  MailBlastApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "MailBlastAPI-${Environment}"
+      StageName: !Ref Environment
+      TracingEnabled: true         # AWS X-Ray
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingRateLimit: 50
+          ThrottlingBurstLimit: 100
+          MetricsEnabled: true
+          LoggingLevel: ERROR
+          DataTraceEnabled: false  # never log request/response data
+      Cors:
+        AllowMethods: "'GET,POST,PUT,PATCH,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,x-api-key'"
+        AllowOrigin: !Sub "'${CORSOrigin}'"
+        MaxAge: "'600'"
+      Auth:
+        DefaultAuthorizer: CognitoAuth
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn: !GetAtt MailBlastUserPool.Arn
+            AuthorizationScopes: [openid, email]
+        ApiKeyRequired: false   # auth via Cognito JWT
+      GatewayResponses:
+        UNAUTHORIZED:
+          StatusCode: 401
+          ResponseTemplates:
+            application/json: '{"error":"UNAUTHORIZED","message":"Missing or invalid token"}'
+        ACCESS_DENIED:
+          StatusCode: 403
+          ResponseTemplates:
+            application/json: '{"error":"FORBIDDEN","message":"Access denied"}'
+        DEFAULT_4XX:
+          ResponseTemplates:
+            application/json: '{"error":"CLIENT_ERROR","message":"$context.error.messageString"}'
+        DEFAULT_5XX:
+          ResponseTemplates:
+            application/json: '{"error":"SERVER_ERROR","message":"An unexpected error occurred"}'
+
+  # ── IAM: Shared Lambda policy ─────────────────────────────────────────────────
+  LambdaBasePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "MailBlast-LambdaBase-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DynamoRW
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:BatchWriteItem
+            Resource:
+              - !GetAtt MailBlastTable.Arn
+              - !Sub "${MailBlastTable.Arn}/index/*"
+          - Sid: SQSSend
+            Effect: Allow
+            Action: sqs:SendMessage
+            Resource: !GetAtt CampaignQueue.Arn
+          - Sid: KMSUsage
+            Effect: Allow
+            Action: [kms:GenerateDataKey, kms:Decrypt]
+            Resource: "*"   # scoped to KMS keys used by SQS/SNS/DDB (alias/* can't be ARN-scoped)
+
+  # ── Lambda Functions ───────────────────────────────────────────────────────────
+
+  # Campaigns CRUD
+  CampaignsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-Campaigns-${Environment}"
+      CodeUri: src/
+      Handler: handlers/campaigns.create
+      Description: Campaign create/read/list/status/delete
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+      Events:
+        CreateCampaign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns
+            Method: POST
+        ListCampaigns:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns
+            Method: GET
+            RequestParameters:
+              method.request.querystring.limit: false
+              method.request.querystring.nextToken: false
+
+  # Handler override: get / status / delete share the same function but different exports
+  # We use a single function with conditional routing based on HTTP method + path.
+  CampaignDetailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-CampaignDetail-${Environment}"
+      CodeUri: src/
+      Handler: handlers/campaignRouter.handler
+      Description: Campaign GET / PATCH status / DELETE
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+      Events:
+        GetCampaign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}
+            Method: GET
+        UpdateStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}/status
+            Method: PATCH
+        DeleteCampaign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}
+            Method: DELETE
+        PreviewCampaign:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}/preview
+            Method: GET
+
+  # Recipients
+  RecipientsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-Recipients-${Environment}"
+      CodeUri: src/
+      Handler: handlers/recipientRouter.handler
+      Description: Add / list recipients; CSV import
+      Timeout: 60                # CSV imports may take a bit longer
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+      Events:
+        AddRecipients:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}/recipients
+            Method: POST
+        AddCSV:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}/recipients/csv
+            Method: POST
+        ListRecipients:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /campaigns/{id}/recipients
+            Method: GET
+
+  # SQS Worker
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-Worker-${Environment}"
+      CodeUri: src/
+      Handler: handlers/worker.handler
+      Description: SQS worker — dequeues campaigns and sends via SES
+      Timeout: 900               # 15 min max Lambda timeout
+      MemorySize: 512
+      Environment:
+        Variables:
+          SEND_RATE_PER_SEC: !Ref SendRatePerSec
+          WORKER_BATCH_SIZE: !Ref WorkerBatchSize
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaSQSQueueExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail, ses:SendRawEmail]
+              Resource: "*"
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt CampaignQueue.Arn
+            BatchSize: 1          # one campaign job per invocation
+            MaximumBatchingWindowInSeconds: 0
+            FunctionResponseTypes: [ReportBatchItemFailures]
+
+  # DLQ processor
+  DLQProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-DLQProcessor-${Environment}"
+      CodeUri: src/
+      Handler: handlers/worker.dlqProcessor
+      Description: DLQ processor — marks exhausted campaigns as FAILED
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaSQSQueueExecutionRole
+      Events:
+        DLQTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt CampaignQueueDLQ.Arn
+            BatchSize: 10
+
+  # SES Event Processor
+  EventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-Events-${Environment}"
+      CodeUri: src/
+      Handler: handlers/events.handler
+      Description: SES bounce/complaint/delivery event processor via SNS
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+      Events:
+        SNSTrigger:
+          Type: SNS
+          Properties:
+            Topic: !Ref MailBlastEventsTopic
+
+  # Unsubscribe (public GET + authenticated POST)
+  UnsubscribeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "MailBlast-Unsubscribe-${Environment}"
+      CodeUri: src/
+      Handler: handlers/unsubscribeRouter.handler
+      Description: One-click unsubscribe link handler
+      Policies:
+        - !Ref LambdaBasePolicy
+        - AWSLambdaBasicExecutionRole
+      Events:
+        UnsubscribeGet:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /unsubscribe
+            Method: GET
+            Auth:
+              Authorizer: NONE   # public endpoint
+        UnsubscribePost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MailBlastApi
+            Path: /unsubscribe
+            Method: POST
+
+# ── Outputs ────────────────────────────────────────────────────────────────────
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway base URL
+    Value: !Sub "https://${MailBlastApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "MailBlast-ApiEndpoint-${Environment}"
+
+  DynamoTableName:
+    Description: DynamoDB table name
+    Value: !Ref MailBlastTable
+    Export:
+      Name: !Sub "MailBlast-TableName-${Environment}"
+
+  CampaignQueueUrl:
+    Description: SQS FIFO queue URL
+    Value: !Ref CampaignQueue
+
+  EventsTopicArn:
+    Description: >
+      SNS topic ARN — set this as the SNS destination in your SES Configuration Set
+      after deployment to enable bounce/complaint/delivery tracking.
+    Value: !Ref MailBlastEventsTopic
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref MailBlastUserPool
+
+  CognitoClientId:
+    Description: Cognito App Client ID (use in frontend auth flows)
+    Value: !Ref MailBlastUserPoolClient

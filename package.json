@@ -1,0 +1,17 @@
+{
+  "name": "mailblast",
+  "version": "2.0.0",
+  "description": "MailBlast — Permission-based bulk email platform",
+  "private": true,
+  "scripts": {
+    "start":          "node start.js",
+    "dev":            "node start.js",
+    "serve:frontend": "node scripts/serve-frontend.js",
+    "serve:api":      "node lambda/local-server.js",
+    "test":           "cd lambda && node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit",
+    "build":          "cd lambda && sam build --cached --parallel",
+    "deploy":         "cd lambda && sam deploy --config-env prod",
+    "deploy:staging": "cd lambda && sam deploy --config-env staging",
+    "deploy:dev":     "cd lambda && sam deploy --config-env dev"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "mailblast-backend",
+  "version": "2.0.0",
+  "description": "Production-ready permission-based bulk email backend — Lambda + SES + SQS + DynamoDB",
+  "private": true,
+  "engines": { "node": ">=18.x" },
+  "scripts": {
+    "build":       "sam build",
+    "deploy:guided": "sam deploy --guided",
+    "deploy":      "sam deploy",
+    "local:api":   "sam local start-api --env-vars env.local.json",
+    "test":        "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit",
+    "test:watch":  "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "lint":        "eslint src/ tests/ --ext .js",
+    "lint:fix":    "eslint src/ tests/ --ext .js --fix",
+    "validate":    "sam validate --lint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb":          "^3.600.0",
+    "@aws-sdk/client-ses":               "^3.600.0",
+    "@aws-sdk/client-sqs":               "^3.600.0",
+    "@aws-sdk/client-sns":               "^3.600.0",
+    "@aws-sdk/client-ssm":               "^3.600.0",
+    "@aws-sdk/lib-dynamodb":             "^3.600.0",
+    "@aws-sdk/util-dynamodb":            "^3.600.0",
+    "csv-parse":                         "^5.5.6",
+    "uuid":                              "^9.0.1"
+  },
+  "devDependencies": {
+    "@jest/globals":                     "^29.7.0",
+    "aws-sdk-client-mock":               "^3.0.1",
+    "aws-sdk-client-mock-jest":          "^3.0.1",
+    "eslint":                            "^8.57.0",
+    "jest":                              "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "collectCoverageFrom": ["src/**/*.js"],
+    "coverageThreshold": { "global": { "lines": 70 } }
+  }
+}

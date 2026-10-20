@@ -1,0 +1,64 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "mailblast-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+disable_rollback = false
+image_repositories = []
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name     = "mailblast-prod"
+region         = "us-east-1"
+capabilities   = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3     = true
+parameter_overrides = [
+  "Environment=prod",
+  "SESRegion=us-east-1",
+  "AppBaseUrl=https://your-frontend-domain.com",
+  "CORSOrigin=*",
+  "SendRatePerSec=10",
+  "WorkerBatchSize=10",
+  "BypassAuth=false",
+  "SESConfigurationSet="
+]
+
+[staging.deploy.parameters]
+stack_name     = "mailblast-staging"
+region         = "us-east-1"
+capabilities   = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = false
+resolve_s3     = true
+parameter_overrides = [
+  "Environment=staging",
+  "SESRegion=us-east-1",
+  "AppBaseUrl=https://staging.your-domain.com",
+  "CORSOrigin=*",
+  "SendRatePerSec=5",
+  "WorkerBatchSize=5",
+  "BypassAuth=false",
+  "SESConfigurationSet="
+]
+
+[dev.deploy.parameters]
+stack_name     = "mailblast-dev"
+region         = "us-east-1"
+capabilities   = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = false
+resolve_s3     = true
+parameter_overrides = [
+  "Environment=dev",
+  "SESRegion=us-east-1",
+  "AppBaseUrl=http://localhost:3000",
+  "CORSOrigin=*",
+  "SendRatePerSec=1",
+  "WorkerBatchSize=5",
+  "BypassAuth=true",
+  "SESConfigurationSet="
+]

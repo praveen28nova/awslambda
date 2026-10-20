@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MailBlast — AWS Mass Email Platform</title>
+  <meta name="description" content="Send targeted mass email campaigns at scale using AWS Lambda and SES. Upload recipients, compose rich messages, and track delivery in real-time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C19.5304 19 20.0391 18.7893 20.4142 18.4142C20.7893 18.0391 21 17.5304 21 17V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H5C4.46957 5 3.96086 5.21071 3.58579 5.58579C3.21071 5.96086 3 6.46957 3 7V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="logo-text">MailBlast</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a class="nav-item active" id="nav-dashboard" data-section="dashboard" href="#" onclick="showSection('dashboard',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" id="nav-compose" data-section="compose" href="#" onclick="showSection('compose',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5C18.8978 2.10217 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10217 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10217 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Compose
+      </a>
+      <a class="nav-item" id="nav-contacts" data-section="contacts" href="#" onclick="showSection('contacts',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89317 18.7122 8.75608 18.1676 9.45768C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Contacts
+      </a>
+      <a class="nav-item" id="nav-templates" data-section="templates" href="#" onclick="showSection('templates',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2V8H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 13H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 9H9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Templates
+      </a>
+      <a class="nav-item" id="nav-history" data-section="history" href="#" onclick="showSection('history',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        History
+      </a>
+      <a class="nav-item" id="nav-settings" data-section="settings" href="#" onclick="showSection('settings',this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.976 17.0657 20.1235 17.2863 20.2241 17.5291C20.3248 17.7719 20.3766 18.0322 20.3766 18.295C20.3766 18.5578 20.3248 18.8181 20.2241 19.0609C20.1235 19.3037 19.976 19.5243 19.79 19.71C19.6043 19.896 19.3837 20.0435 19.1409 20.1441C18.8981 20.2448 18.6378 20.2966 18.375 20.2966C18.1122 20.2966 17.8519 20.2448 17.6091 20.1441C17.3663 20.0435 17.1457 19.896 16.96 19.71L16.9 19.65C16.6643 19.4195 16.365 19.2648 16.0406 19.206C15.7162 19.1472 15.3816 19.1869 15.08 19.32C14.7842 19.4468 14.532 19.6572 14.3543 19.9255C14.1766 20.1938 14.0813 20.5082 14.08 20.83V21C14.08 21.5304 13.8693 22.0391 13.4942 22.4142C13.1191 22.7893 12.6104 23 12.08 23C11.5496 23 11.0409 22.7893 10.6658 22.4142C10.2907 22.0391 10.08 21.5304 10.08 21V20.91C10.0723 20.579 9.96512 20.258 9.77251 19.9887C9.5799 19.7194 9.31074 19.5143 9 19.4C8.69838 19.2669 8.36381 19.2272 8.03941 19.286C7.71502 19.3448 7.41568 19.4995 7.18 19.73L7.12 19.79C6.93425 19.976 6.71368 20.1235 6.47088 20.2241C6.22808 20.3248 5.96783 20.3766 5.705 20.3766C5.44217 20.3766 5.18192 20.3248 4.93912 20.2241C4.69632 20.1235 4.47575 19.976 4.29 19.79C4.10405 19.6043 3.95653 19.3837 3.85588 19.1409C3.75523 18.8981 3.70343 18.6378 3.70343 18.375C3.70343 18.1122 3.75523 17.8519 3.85588 17.6091C3.95653 17.3663 4.10405 17.1457 4.29 16.96L4.35 16.9C4.58054 16.6643 4.73519 16.365 4.794 16.0406C4.85282 15.7162 4.81312 15.3816 4.68 15.08C4.55324 14.7842 4.34276 14.532 4.07447 14.3543C3.80618 14.1766 3.49179 14.0813 3.17 14.08H3C2.46957 14.08 1.96086 13.8693 1.58579 13.4942C1.21071 13.1191 1 12.6104 1 12.08C1 11.5496 1.21071 11.0409 1.58579 10.6658C1.96086 10.2907 2.46957 10.08 3 10.08H3.09C3.42099 10.0723 3.742 9.96512 4.0113 9.77251C4.28059 9.5799 4.48572 9.31074 4.6 9C4.73312 8.69838 4.77282 8.36381 4.714 8.03941C4.65519 7.71502 4.50054 7.41568 4.27 7.18L4.21 7.12C4.02405 6.93425 3.87653 6.71368 3.77588 6.47088C3.67523 6.22808 3.62343 5.96783 3.62343 5.705C3.62343 5.44217 3.67523 5.18192 3.77588 4.93912C3.87653 4.69632 4.02405 4.47575 4.21 4.29C4.39575 4.10405 4.61632 3.95653 4.85912 3.85588C5.10192 3.75523 5.36217 3.70343 5.625 3.70343C5.88783 3.70343 6.14808 3.75523 6.39088 3.85588C6.63368 3.95653 6.85425 4.10405 7.04 4.29L7.1 4.35C7.33568 4.58054 7.63502 4.73519 7.95941 4.794C8.28381 4.85282 8.61838 4.81312 8.92 4.68H9C9.29577 4.55324 9.54802 4.34276 9.72569 4.07447C9.90337 3.80618 9.99872 3.49179 10 3.17V3C10 2.46957 10.2107 1.96086 10.5858 1.58579C10.9609 1.21071 11.4696 1 12 1C12.5304 1 13.0391 1.21071 13.4142 1.58579C13.7893 1.96086 14 2.46957 14 3V3.09C14.0013 3.41179 14.0966 3.72618 14.2743 3.99447C14.452 4.26276 14.7042 4.47324 15 4.6C15.3016 4.73312 15.6362 4.77282 15.9606 4.714C16.285 4.65519 16.5843 4.50054 16.82 4.27L16.88 4.21C17.0657 4.02405 17.2863 3.87653 17.5291 3.77588C17.7719 3.67523 18.0322 3.62343 18.295 3.62343C18.5578 3.62343 18.8181 3.67523 19.0609 3.77588C19.3037 3.87653 19.5243 4.02405 19.71 4.21C19.896 4.39575 20.0435 4.61632 20.1441 4.85912C20.2448 5.10192 20.2966 5.36217 20.2966 5.625C20.2966 5.88783 20.2448 6.14808 20.1441 6.39088C20.0435 6.63368 19.896 6.85425 19.71 7.04L19.65 7.1C19.4195 7.33568 19.2648 7.63502 19.206 7.95941C19.1472 8.28381 19.1869 8.61838 19.32 8.92V9C19.4468 9.29577 19.6572 9.54802 19.9255 9.72569C20.1938 9.90337 20.5082 9.99872 20.83 10H21C21.5304 10 22.0391 10.2107 22.4142 10.5858C22.7893 10.9609 23 11.4696 23 12C23 12.5304 22.7893 13.0391 22.4142 13.4142C22.0391 13.7893 21.5304 14 21 14H20.91C20.5882 14.0013 20.2738 14.0966 20.0055 14.2743C19.7372 14.452 19.5268 14.7042 19.4 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="aws-badge">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="4" fill="#FF9900"/><text x="12" y="17" text-anchor="middle" font-size="10" font-weight="bold" fill="white" font-family="Arial">AWS</text></svg>
+        <span>Powered by AWS SES</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ──────────────────────────────────────────────────────────── -->
+  <main class="main-content" id="main-content">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+      </div>
+      <div class="topbar-right">
+        <div class="ses-status" id="ses-status">
+          <span class="status-dot"></span>
+          <span>SES Connected</span>
+        </div>
+        <button class="btn-primary" onclick="showSection('compose', document.getElementById('nav-compose'))">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+          New Campaign
+        </button>
+      </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  DASHBOARD SECTION                                                         -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section active" id="section-dashboard">
+      <div class="section-header">
+        <h1>Dashboard Overview</h1>
+        <p>Your campaign performance at a glance</p>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card" style="--accent: #6c63ff;">
+          <div class="stat-icon" style="background: rgba(108,99,255,0.15);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C19.5304 19 20.0391 18.7893 20.4142 18.4142C20.7893 18.0391 21 17.5304 21 17V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H5C4.46957 5 3.96086 5.21071 3.58579 5.58579C3.21071 5.96086 3 6.46957 3 7V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19Z" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Emails Sent</span>
+            <span class="stat-value" id="stat-sent">0</span>
+            <span class="stat-change positive">↑ Ready to send</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="--accent: #00d4ff;">
+          <div class="stat-icon" style="background: rgba(0,212,255,0.15);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18457 2.99721 7.13633 4.39828 5.49707C5.79935 3.85782 7.69279 2.71538 9.79619 2.24015C11.8996 1.76491 14.1003 1.98234 16.07 2.86" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 4L12 14.01L9 11.01" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Delivered</span>
+            <span class="stat-value" id="stat-delivered">0</span>
+            <span class="stat-change positive">↑ 98.2% rate</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="--accent: #f59e0b;">
+          <div class="stat-icon" style="background: rgba(245,158,11,0.15);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12Z" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="#f59e0b" stroke-width="2"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Total Campaigns</span>
+            <span class="stat-value" id="stat-campaigns">0</span>
+            <span class="stat-change">All time</span>
+          </div>
+        </div>
+
+        <div class="stat-card" style="--accent: #10b981;">
+          <div class="stat-icon" style="background: rgba(16,185,129,0.15);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="stat-body">
+            <span class="stat-label">Total Contacts</span>
+            <span class="stat-value" id="stat-contacts">0</span>
+            <span class="stat-change positive">↑ Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Campaigns Table -->
+      <div class="card mt-6">
+        <div class="card-header">
+          <h2>Recent Campaigns</h2>
+          <button class="btn-ghost" onclick="showSection('compose', document.getElementById('nav-compose'))">+ New Campaign</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table" id="recent-campaigns-table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Sent</th>
+                <th>Delivered</th>
+                <th>Failed</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="campaigns-tbody">
+              <tr class="empty-row">
+                <td colspan="6">
+                  <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M3 8L10.89 13.26C11.2187 13.4793 11.6049 13.5963 12 13.5963C12.3951 13.5963 12.7813 13.4793 13.11 13.26L21 8M5 19H19C19.5304 19 20.0391 18.7893 20.4142 18.4142C20.7893 18.0391 21 17.5304 21 17V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H5C4.46957 5 3.96086 5.21071 3.58579 5.58579C3.21071 5.96086 3 6.46957 3 7V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19Z" stroke="#4b5563" stroke-width="1.5"/></svg>
+                    <p>No campaigns yet. <a href="#" onclick="showSection('compose', document.getElementById('nav-compose'))">Create your first one →</a></p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  COMPOSE SECTION                                                           -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-compose">
+      <div class="section-header">
+        <h1>Compose Campaign</h1>
+        <p>Create and send your email campaign</p>
+      </div>
+
+      <div class="compose-layout">
+        <!-- Left: Form -->
+        <div class="compose-form-panel">
+          <div class="card">
+            <div class="card-header"><h2>Campaign Details</h2></div>
+            <div class="card-body">
+              <div class="form-group">
+                <label for="campaign-name">Campaign Name</label>
+                <input type="text" id="campaign-name" placeholder="e.g. Black Friday Sale 2024" />
+              </div>
+              <div class="form-group">
+                <label for="from-email">From Email <span class="required">*</span></label>
+                <input type="email" id="from-email" placeholder="sender@yourdomain.com" />
+                <span class="hint">Must be a verified SES email address</span>
+              </div>
+              <div class="form-group">
+                <label for="from-name">From Name</label>
+                <input type="text" id="from-name" placeholder="Your Company" />
+              </div>
+              <div class="form-group">
+                <label for="reply-to">Reply-To Email</label>
+                <input type="email" id="reply-to" placeholder="replies@yourdomain.com" />
+              </div>
+              <div class="form-group">
+                <label for="subject">Subject Line <span class="required">*</span></label>
+                <input type="text" id="subject" placeholder="Your compelling email subject..." />
+                <span class="char-count" id="subject-count">0/78</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recipients -->
+          <div class="card mt-4">
+            <div class="card-header">
+              <h2>Recipients</h2>
+              <div class="tab-switcher">
+                <button class="tab-btn active" id="tab-manual" onclick="switchRecipientTab('manual')">Manual</button>
+                <button class="tab-btn" id="tab-csv" onclick="switchRecipientTab('csv')">CSV Import</button>
+                <button class="tab-btn" id="tab-contacts" onclick="switchRecipientTab('contacts')">Contacts</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Manual input -->
+              <div id="recipient-manual" class="recipient-panel">
+                <div class="form-group">
+                  <label for="recipients-manual">Email Addresses <span class="required">*</span></label>
+                  <textarea id="recipients-manual" rows="5" placeholder="Enter email addresses separated by commas, semicolons, or newlines...&#10;&#10;john@example.com&#10;jane@example.com, bob@example.com"></textarea>
+                  <span class="hint" id="manual-count">0 recipients detected</span>
+                </div>
+              </div>
+
+              <!-- CSV import -->
+              <div id="recipient-csv" class="recipient-panel hidden">
+                <div class="csv-drop-zone" id="csv-drop-zone" onclick="document.getElementById('csv-file').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 8L12 3L7 8" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 3V15" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <p>Drop your CSV file here or <span class="link">browse</span></p>
+                  <span class="hint">CSV should have an "email" column (+ optional "name" column)</span>
+                </div>
+                <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="handleCSVUpload(event)" />
+                <div id="csv-preview" class="csv-preview hidden"></div>
+              </div>
+
+              <!-- Contacts tab -->
+              <div id="recipient-contacts" class="recipient-panel hidden">
+                <div class="contacts-select-all">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="select-all-contacts" onchange="toggleSelectAll(this)" />
+                    <span>Select all contacts</span>
+                    <span class="badge" id="selected-count-badge">0 selected</span>
+                  </label>
+                </div>
+                <div id="contact-checklist" class="contact-checklist">
+                  <div class="empty-state small">No contacts yet. <a href="#" onclick="showSection('contacts', document.getElementById('nav-contacts'))">Add contacts →</a></div>
+                </div>
+              </div>
+
+              <div class="recipient-summary mt-3" id="recipient-summary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/></svg>
+                <span id="total-recipients-label">0 recipients ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Email body + actions -->
+        <div class="compose-editor-panel">
+          <div class="card">
+            <div class="card-header">
+              <h2>Email Body</h2>
+              <div class="body-type-toggle">
+                <button class="toggle-btn active" id="body-html-btn" onclick="setBodyType('html')">HTML</button>
+                <button class="toggle-btn" id="body-text-btn" onclick="setBodyType('text')">Plain Text</button>
+              </div>
+            </div>
+            <div class="card-body editor-card-body">
+              <!-- Toolbar (HTML mode only) -->
+              <div class="editor-toolbar" id="editor-toolbar">
+                <button class="toolbar-btn" onclick="execCmd('bold')" title="Bold"><b>B</b></button>
+                <button class="toolbar-btn" onclick="execCmd('italic')" title="Italic"><i>I</i></button>
+                <button class="toolbar-btn" onclick="execCmd('underline')" title="Underline"><u>U</u></button>
+                <div class="toolbar-sep"></div>
+                <button class="toolbar-btn" onclick="execCmd('insertUnorderedList')" title="Bullet list">☰</button>
+                <button class="toolbar-btn" onclick="execCmd('insertOrderedList')" title="Numbered list">1.</button>
+                <div class="toolbar-sep"></div>
+                <button class="toolbar-btn" onclick="execCmd('justifyLeft')" title="Align left">⬅</button>
+                <button class="toolbar-btn" onclick="execCmd('justifyCenter')" title="Center">⬛</button>
+                <button class="toolbar-btn" onclick="execCmd('justifyRight')" title="Align right">➡</button>
+                <div class="toolbar-sep"></div>
+                <button class="toolbar-btn" onclick="insertLink()" title="Insert link">🔗</button>
+                <button class="toolbar-btn" onclick="clearEditor()" title="Clear" style="color:#f87171;">✕</button>
+              </div>
+              <div class="editor-area" id="email-body-html" contenteditable="true" spellcheck="true" placeholder="Write your email here..."></div>
+              <textarea class="editor-textarea hidden" id="email-body-text" placeholder="Write your plain-text email here..."></textarea>
+            </div>
+          </div>
+
+          <!-- Template Picker -->
+          <div class="card mt-4">
+            <div class="card-header"><h2>Quick Templates</h2></div>
+            <div class="templates-strip" id="template-strip">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+
+          <!-- Send Actions -->
+          <div class="card mt-4 send-actions-card">
+            <div class="send-preview">
+              <div class="send-info">
+                <div class="send-info-item">
+                  <span class="send-info-label">Recipients</span>
+                  <span class="send-info-value" id="send-recipient-count">0</span>
+                </div>
+                <div class="send-info-item">
+                  <span class="send-info-label">Batches</span>
+                  <span class="send-info-value" id="send-batch-count">0</span>
+                </div>
+                <div class="send-info-item">
+                  <span class="send-info-label">Est. Time</span>
+                  <span class="send-info-value" id="send-est-time">—</span>
+                </div>
+              </div>
+            </div>
+            <div class="send-buttons">
+              <button class="btn-secondary" onclick="saveDraft()" id="save-draft-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16L21 8V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21Z" stroke="currentColor" stroke-width="2"/><path d="M17 21V13H7V21" stroke="currentColor" stroke-width="2"/><path d="M7 3V8H15" stroke="currentColor" stroke-width="2"/></svg>
+                Save Draft
+              </button>
+              <button class="btn-primary btn-send" onclick="sendCampaign()" id="send-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Send Campaign
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  CONTACTS SECTION                                                          -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-contacts">
+      <div class="section-header">
+        <h1>Contacts</h1>
+        <p>Manage your recipient lists</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="search-bar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/><path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="text" id="contact-search" placeholder="Search contacts..." oninput="filterContacts(this.value)" />
+          </div>
+          <div style="display:flex;gap:0.75rem;">
+            <button class="btn-ghost" onclick="exportContacts()">Export CSV</button>
+            <button class="btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="select-all-table" onchange="toggleTableSelectAll(this)" /></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Tags</th>
+                <th>Added</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="contacts-tbody">
+              <tr class="empty-row">
+                <td colspan="6">
+                  <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21" stroke="#4b5563" stroke-width="1.5"/><circle cx="9" cy="7" r="4" stroke="#4b5563" stroke-width="1.5"/></svg>
+                    <p>No contacts yet. Add your first contact or import a CSV.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  TEMPLATES SECTION                                                         -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-templates">
+      <div class="section-header">
+        <h1>Email Templates</h1>
+        <p>Pre-built layouts to speed up your campaigns</p>
+      </div>
+      <div class="templates-grid" id="templates-grid">
+        <!-- Filled by JS -->
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  HISTORY SECTION                                                           -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-history">
+      <div class="section-header">
+        <h1>Campaign History</h1>
+        <p>All past email campaigns</p>
+      </div>
+      <div class="card">
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Subject</th>
+                <th>Sent</th>
+                <th>Delivered</th>
+                <th>Failed</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+              <tr class="empty-row">
+                <td colspan="7">
+                  <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#4b5563" stroke-width="1.5"/><path d="M12 6V12L16 14" stroke="#4b5563" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    <p>No campaigns sent yet.</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <!--  SETTINGS SECTION                                                          -->
+    <!-- ══════════════════════════════════════════════════════════════════════════ -->
+    <section class="section" id="section-settings">
+      <div class="section-header">
+        <h1>Settings</h1>
+        <p>Configure your AWS and SES connection</p>
+      </div>
+
+      <div class="settings-layout">
+        <div class="card settings-card">
+          <div class="card-header"><h2>AWS Configuration</h2></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label for="api-endpoint">API Gateway Endpoint <span class="required">*</span></label>
+              <input type="url" id="api-endpoint" placeholder="https://xxxxxxxx.execute-api.us-east-1.amazonaws.com/prod/send-emails" />
+              <span class="hint">Your deployed API Gateway URL from the SAM deployment</span>
+            </div>
+            <div class="form-group">
+              <label for="api-key">API Key</label>
+              <div class="input-with-toggle">
+                <input type="password" id="api-key" placeholder="Your API Gateway API Key" />
+                <button class="icon-btn" onclick="toggleApiKeyVisibility()" title="Toggle visibility">👁</button>
+              </div>
+              <span class="hint">Optional — required if API Gateway auth is enabled</span>
+            </div>
+            <div class="form-group">
+              <label for="ses-region">SES Region</label>
+              <select id="ses-region">
+                <option value="us-east-1" selected>US East (N. Virginia) — us-east-1</option>
+                <option value="us-west-2">US West (Oregon) — us-west-2</option>
+                <option value="eu-west-1">EU (Ireland) — eu-west-1</option>
+                <option value="eu-central-1">EU (Frankfurt) — eu-central-1</option>
+                <option value="ap-southeast-1">Asia Pacific (Singapore) — ap-southeast-1</option>
+                <option value="ap-southeast-2">Asia Pacific (Sydney) — ap-southeast-2</option>
+                <option value="ap-northeast-1">Asia Pacific (Tokyo) — ap-northeast-1</option>
+                <option value="ca-central-1">Canada (Central) — ca-central-1</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="default-from">Default From Email</label>
+              <input type="email" id="default-from" placeholder="sender@yourdomain.com" />
+            </div>
+            <div class="form-group">
+              <label for="default-name">Default From Name</label>
+              <input type="text" id="default-name" placeholder="Your Company" />
+            </div>
+            <div class="settings-actions">
+              <button class="btn-ghost" onclick="testConnection()" id="test-conn-btn">Test Connection</button>
+              <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+            </div>
+            <div class="connection-result hidden" id="connection-result"></div>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <div class="card-header"><h2>Deployment Guide</h2></div>
+          <div class="card-body">
+            <div class="deploy-steps">
+              <div class="deploy-step">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                  <strong>Verify your sender email in AWS SES</strong>
+                  <p>Go to AWS Console → SES → Verified Identities → Create Identity</p>
+                </div>
+              </div>
+              <div class="deploy-step">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                  <strong>Install AWS SAM CLI</strong>
+                  <code>npm install -g aws-sam-local</code>
+                </div>
+              </div>
+              <div class="deploy-step">
+                <div class="step-num">3</div>
+                <div class="step-body">
+                  <strong>Install Lambda dependencies</strong>
+                  <code>cd lambda && npm install</code>
+                </div>
+              </div>
+              <div class="deploy-step">
+                <div class="step-num">4</div>
+                <div class="step-body">
+                  <strong>Build and deploy with SAM</strong>
+                  <code>sam build && sam deploy --guided</code>
+                </div>
+              </div>
+              <div class="deploy-step">
+                <div class="step-num">5</div>
+                <div class="step-body">
+                  <strong>Copy the API Gateway URL from SAM output and paste it above</strong>
+                  <p>The URL looks like: <em>https://xxxx.execute-api.us-east-1.amazonaws.com/prod/send-emails</em></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Modals ──────────────────────────────────────────────────────────────── -->
+
+  <!-- Add Contact Modal -->
+  <div class="modal-backdrop hidden" id="add-contact-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Add Contact</h3>
+        <button class="icon-btn" onclick="closeModal('add-contact-modal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="contact-name">Name</label>
+          <input type="text" id="contact-name" placeholder="John Doe" />
+        </div>
+        <div class="form-group">
+          <label for="contact-email">Email <span class="required">*</span></label>
+          <input type="email" id="contact-email" placeholder="john@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="contact-tags">Tags (comma-separated)</label>
+          <input type="text" id="contact-tags" placeholder="newsletter, vip, customer" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('add-contact-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addContact()">Add Contact</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send Progress Modal -->
+  <div class="modal-backdrop hidden" id="send-progress-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="progress-title">Sending Campaign...</h3>
+      </div>
+      <div class="modal-body">
+        <div class="progress-container">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progress-bar-fill"></div>
+          </div>
+          <div class="progress-stats">
+            <span id="progress-label">Sending...</span>
+            <span id="progress-pct">0%</span>
+          </div>
+        </div>
+        <div class="send-result hidden" id="send-result">
+          <div class="result-icon" id="result-icon"></div>
+          <div class="result-summary" id="result-summary"></div>
+          <div class="result-details" id="result-details"></div>
+        </div>
+      </div>
+      <div class="modal-footer" id="progress-footer">
+        <button class="btn-primary hidden" id="progress-close-btn" onclick="closeModal('send-progress-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
